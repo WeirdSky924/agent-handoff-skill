@@ -10,7 +10,7 @@
 
 它解决的问题很朴素：AI Agent 很强，但会话窗口不是可靠的项目记忆。上下文会压缩，会话会中断，Agent 会更换，开发任务却还要继续。`agent-handoff` 的目标就是把“上一位 Agent 脑子里的状态”沉淀成仓库内可维护、可验证、可接手的项目文档。
 
-它不是聊天总结工具，也不是把所有历史都塞进一个 Markdown 文件。它更像一份轻量的“项目飞行记录仪”：记录当前目标、状态、活跃文件、关键决策、验证结果、风险、阻塞点和下一步，让下一位 Agent 能快速、安全地继续工作。
+它不是聊天总结工具，也不是把所有历史都塞进一个 Markdown 文件。它更像一份轻量的“项目飞行记录仪”：记录当前目标、状态、活跃文件、关键决策、验证结果、风险、阻塞点和下一步，让下一位 Agent 能快速、安全地继续工作。现在它还包含确定性的容量治理脚本，避免 snapshot 和历史日志在长期使用后无限膨胀。
 
 ## 平台兼容性
 
@@ -54,6 +54,7 @@
 | `.agent-handoff/backlog.md` | 待办和 follow-up。 |
 | `.agent-handoff/risks.md` | 风险、阻塞点、`UNKNOWN` 和需要确认的信息。 |
 | `.agent-handoff/archive.md` | 压缩后的旧历史，不参与默认恢复。 |
+| `.agent-handoff/archive/` | 自动轮换出的完整历史分片，单个文件不超过 128 KiB。 |
 | `AGENTS.md` | Codex 项目级 instructions 文件，写入 Codex 会读取的接力维护规则。 |
 | `.claude/CLAUDE.md` | 项目级 Claude Code 规则，要求未来 Agent 启动时读取接力文档，并在收尾前更新。 |
 | `AGENT_SESSION_PROMPTS.md` | 可选文件，保存新窗口启动、继续任务、收尾、接力质量审查等常用提示词。 |
@@ -80,8 +81,9 @@
 1. **Inspect**：先看仓库结构，不直接写模板。
 2. **Bootstrap**：创建或合并必要的接力文件和项目规则。
 3. **Maintain**：任务过程中持续记录目标、决策、活跃文件、验证和风险。
-4. **Closeout**：非纯聊天任务结束前，主动刷新 `AGENT_HANDOFF.md` 或相关 `.agent-handoff/` 文件。
-5. **Recover**：下一位 Agent 从接力文档恢复状态，再按需读取源码。
+4. **Compact / Rotate**：检查容量，先归档再压缩 snapshot，并按完整记录轮换过长日志。
+5. **Closeout**：非纯聊天任务结束前，主动刷新并维护 `AGENT_HANDOFF.md` 或相关 `.agent-handoff/` 文件。
+6. **Recover**：下一位 Agent 从接力文档恢复状态，再按需读取源码。
 
 这个闭环的重点不是让 Agent 少读源码，而是让 Agent 少读无关历史。`AGENT_HANDOFF.md` 只负责告诉下一位 Agent “从哪里开始读”，具体实现仍然必须从源码和测试中验证。
 
@@ -348,7 +350,36 @@ python scripts\bootstrap_handoff.py --repo . --install-hooks --dry-run
 python scripts\bootstrap_handoff.py --repo . --install-hooks
 ```
 
-这会创建 `.claude/hooks/handoff-watch.mjs`，并把 `SessionStart`、`UserPromptSubmit`、`PreCompact`、`Stop`、`SubagentStop`、`SessionEnd` 的缺失 hook 条目合并进 `.claude/settings.json`。该 hook 是事件感知的软提醒：启动时注入接力健康状态和恢复阅读顺序；用户说 `continue`、`resume`、`handoff`、`compact`、`closeout` 等相关内容时补充上下文；压缩前和收尾前提醒更新接力文档。它始终返回 `continue: true`，不返回 `decision: "block"` 或 `continue: false`，不写接力文件，不会因为 `AGENT_HANDOFF.md` 缺失或脚本检查异常而终止会话。
+这会创建 `.claude/hooks/handoff-watch.mjs`，并把 `SessionStart`、`UserPromptSubmit`、`PreCompact`、`Stop`、`SubagentStop`、`SessionEnd` 的缺失 hook 条目合并进 `.claude/settings.json`。该 hook 是事件感知的软提醒：启动时注入接力健康状态和恢复阅读顺序；用户说 `continue`、`resume`、`handoff`、`compact`、`closeout` 等相关内容时补充上下文；压缩前和收尾前提醒更新接力文档；发现 snapshot 或日志超过容量阈值时提示 Agent 处理。它始终返回 `continue: true`，不返回 `decision: "block"` 或 `continue: false`，不调用 Python，不写接力文件，不会因为 `AGENT_HANDOFF.md` 缺失或脚本检查异常而终止会话。
+
+### 检查容量、压缩 Snapshot 和轮换历史
+
+长期运行的项目会不断产生验证记录和工作日志。如果只靠“尽量写短”这一句规则，snapshot 很容易重新变成聊天归档。新版提供独立维护脚本，让 Codex 和 Claude Code 使用同一套确定性策略：
+
+```powershell
+# 只读检查，不修改任何文件
+python scripts\maintain_handoff.py --repo . --check
+
+# 超限时压缩 snapshot，并轮换日志和已完成 backlog
+python scripts\maintain_handoff.py --repo . --compact-if-needed
+
+# 不处理 snapshot，只轮换符合条件的历史记录
+python scripts\maintain_handoff.py --repo . --rotate
+```
+
+如果脚本从已安装 skill 运行，把 `scripts\maintain_handoff.py` 换成实际 skill 路径，例如 `~/.codex/skills/agent-handoff/scripts/maintain_handoff.py` 或 `~/.claude/skills/agent-handoff/scripts/maintain_handoff.py`。
+
+| 文件 | 软限制 / 触发条件 | 硬限制 / 上限 | 自动处理 |
+| --- | --- | --- | --- |
+| `snapshot.md` | 16 KiB 或 240 行 | 32 KiB 或 400 行 | 先归档原文，再保留当前状态、有限数量的下一步/活跃文件/问题和恢复摘要。 |
+| `work-log.md` | 64 KiB 或 30 个日期段 | 保留至少一个最新完整日期段 | 按完整 `## YYYY-MM-DD` 段轮换旧记录。 |
+| `validation.md` | 64 KiB 或 200 行表格记录 | 保留至少一条最新完整记录 | 按完整 Markdown 表格行轮换。 |
+| `backlog.md` | 32 KiB | 32 KiB | 只归档可机械识别的 `[x]` 已完成项。 |
+| `risks.md` | 32 KiB | 32 KiB | 不自动删除；报告给 Agent 做语义审查。 |
+| 单文档 `AGENT_HANDOFF.md` | 32 KiB | 64 KiB | 超过硬限制时迁移为多文档，不做复杂的文件内自动轮换。 |
+| `.agent-handoff/archive/*.md` | 按需生成 | 每个 128 KiB | 按 UTF-8 安全边界自动分片，并在 `archive.md` 中建立索引。 |
+
+安全边界比“强行变小”更重要：snapshot 结构解析失败时脚本不会覆盖原文件；risks 需要理解语义，因此不会机械删除；所有可自动压缩的 snapshot 都先完整归档，再原子替换。`--check` 只读取，hook 也只提醒，真正写入只会发生在 Agent 明确运行 `--compact-if-needed` 或 `--rotate` 时。
 
 ## 目录结构
 
@@ -375,6 +406,9 @@ agent-handoff/
     templates.md
   scripts/
     bootstrap_handoff.py
+    maintain_handoff.py
+  tests/
+    test_maintain_handoff.py
 ```
 
 多文档模式会在目标项目中创建：
@@ -390,6 +424,8 @@ AGENT_HANDOFF.md
   backlog.md
   risks.md
   archive.md
+  archive/
+    <type>-<timestamp>.md
 ```
 
 各部分职责：
@@ -403,6 +439,8 @@ AGENT_HANDOFF.md
 - `templates/handoff-watch.mjs`：Claude Code 事件感知接力提醒 hook 脚本模板。
 - `references/quality.md`：审查、修复、压缩接力文档时使用的质量标准。
 - `scripts/bootstrap_handoff.py`：保守的初始化脚本，负责创建缺失文件、多文档或单文档结构、幂等合并规则，并可按需安装 Claude Code 软提醒 hook。
+- `scripts/maintain_handoff.py`：Codex / Claude Code 共用的容量检查、snapshot 压缩和历史轮换脚本。
+- `tests/test_maintain_handoff.py`：验证只读检查、归档优先、结构化轮换、语义保护和分片上限。
 - `README.md` / `README_en.md`：GitHub 展示文档，不参与 skill 运行。
 
 ## 设计原则
@@ -451,6 +489,10 @@ AGENT_HANDOFF.md
 
 生成的 `AGENTS.md` 和 `.claude/CLAUDE.md` 会要求 Agent 以小范围、可锚定的方式读取文件。Read offset 必须当作行号；如果出现空输出、offset warning、行号不一致、`file is shorter than the provided offset` 或 Read 后 API termination，Agent 必须停止继续用 Read 翻页，改用 `rg -n`、`wc -l`、`sed -n` 等只读命令重新定位。
 
+### 7. 当前状态有界，完整历史可追溯
+
+`snapshot.md` 采用替换式语义，不把上一版 snapshot 继续追加到文件底部。达到软限制后，维护脚本先把原文写入带时间戳的 archive 分片，再生成有界的当前状态；如果无法安全解析，则原样保留并要求 Agent 修复。这样恢复入口始终轻量，同时历史仍然可追溯。
+
 ## 质量清单
 
 一个好的 `AGENT_HANDOFF.md` 应该满足：
@@ -467,11 +509,14 @@ AGENT_HANDOFF.md
 多文档模式还必须满足：
 
 - `AGENT_HANDOFF.md` 只是索引和读取路线，不堆任务日志。
-- `snapshot.md` 足够短，能说明当前目标、状态、下一步、活跃文件、阻塞点。
+- `snapshot.md` 是替换式当前状态，通常不超过 16 KiB / 240 行，且不会在无提示的情况下超过 32 KiB / 400 行。
 - `risks.md` 包含所有仍有效的风险、阻塞和 `UNKNOWN`。
 - `backlog.md` 是可执行待办，不保留已完成旧项。
 - `validation.md` 清楚记录 passed、failed、not run。
 - `decisions.md` 的每个决策都有原因和证据。
+- `work-log.md` 不超过 64 KiB / 30 个日期段，`validation.md` 不超过 64 KiB / 200 条记录。
+- `backlog.md` 和 `risks.md` 不超过 32 KiB；自动归档不会删除待办或风险语义。
+- 自动归档分片不超过 128 KiB，且默认恢复不需要读取它们。
 - 新 Agent 只读入口索引、snapshot、risks、backlog、必要 validation/decisions，就能恢复前一个 Agent 的工作状态。
 
 ## 注意事项
@@ -479,6 +524,7 @@ AGENT_HANDOFF.md
 - 如果项目决定把 `AGENT_HANDOFF.md` 提交进 Git，应谨慎记录内容，避免私密上下文、路径、日志或内部信息泄露。
 - 如果项目把接力文档放进 `.gitignore`，要确保团队知道它是本地状态文件。
 - hook 只是可选增强，不应该替代 Agent 自己的 closeout 责任；默认初始化不会安装 hook，只有显式使用 `--install-hooks` 才会写入 `.claude/hooks/handoff-watch.mjs` 并合并 `.claude/settings.json`。当前 hook 覆盖 `SessionStart`、`UserPromptSubmit`、`PreCompact`、`Stop`、`SubagentStop`、`SessionEnd`，只输出软上下文或软提醒。
+- hook 只检测容量并提示，不会自动运行维护脚本；这避免 PostToolUse 或 Stop 阶段因 Python 进程、文件锁或脚本异常阻塞会话。
 - 如果目标项目已有无 Agent handoff marker 的 `.claude/hooks/handoff-watch.mjs`，脚本会保留它且不会自动把 settings 指向该未知脚本，避免误接入可能阻断会话的自定义 hook。
 - `bootstrap_handoff.py` 不会覆盖已有 `AGENT_HANDOFF.md`，因为已有接力状态必须由 Agent 基于仓库事实修复。
 

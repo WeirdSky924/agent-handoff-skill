@@ -167,7 +167,7 @@ def multi_index_template(repo: Path) -> str:
 ## Maintenance Contract
 
 - Keep this file short. It is an index and recovery route, not a work log.
-- Store current task state in `.agent-handoff/snapshot.md`.
+- Store current task state in `.agent-handoff/snapshot.md`; replace stale fields instead of appending historical snapshots.
 - Store durable facts, decisions, validation, backlog, risks, and archives in the dedicated files listed below.
 - Keep all content factual and repository-based. Mark uncertainty as `UNKNOWN`.
 - Do not include secrets, credentials, long logs, full code blocks, or chat transcript dumps.
@@ -183,6 +183,15 @@ def multi_index_template(repo: Path) -> str:
 - `.agent-handoff/backlog.md`: Pending work and follow-ups.
 - `.agent-handoff/risks.md`: Risks, blockers, unknowns, and user/source confirmations needed.
 - `.agent-handoff/archive.md`: Compressed old history that is not part of normal startup.
+- `.agent-handoff/archive/`: Automatically rotated history chunks, each capped at 128 KiB.
+
+## Size And Rotation Policy
+
+- Snapshot soft limit: 16 KiB or 240 lines. Hard limit: 32 KiB or 400 lines.
+- Work log limit: 64 KiB or 30 dated sections. Validation limit: 64 KiB or 200 table rows.
+- Backlog and risks limit: 32 KiB each. Only completed backlog items may be archived mechanically; risks require Agent review.
+- After updating handoff state, run the installed `agent-handoff/scripts/maintain_handoff.py --repo <repo> --compact-if-needed` when available.
+- Maintenance must archive before replacing, preserve complete records, and leave unparseable or semantically unsafe content unchanged for Agent repair.
 
 ## Recovery Reading Order
 
@@ -219,6 +228,7 @@ For non-trivial work, update the relevant files before final response:
 - Update `.agent-handoff/validation.md` when checks were run or intentionally skipped.
 - Update `.agent-handoff/decisions.md` when a durable decision was made.
 - Update `.agent-handoff/backlog.md` and `.agent-handoff/risks.md` when follow-ups, blockers, risks, or unknowns changed.
+- Run the handoff maintenance check and resolve hard-limit findings before final response.
 """
 
 
@@ -248,6 +258,7 @@ def multi_snapshot_template(repo: Path) -> str:
 
 - Use `AGENT_HANDOFF.md` as the index.
 - Start here for the current objective and next action.
+- Replace this current-state snapshot on update; do not append prior snapshots here.
 - Do not treat this file as a replacement for source inspection.
 """
 
@@ -416,10 +427,13 @@ Use the handoff files as continuity memory, but verify implementation details fr
 
 Maintain the smallest relevant file. Do not put all state into `AGENT_HANDOFF.md`; it is an index."""
         size = """- Keep `AGENT_HANDOFF.md` short; it is an index.
-- Keep `.agent-handoff/snapshot.md` short, current, and action-oriented.
-- Keep only recent, still-relevant work in `.agent-handoff/work-log.md`.
-- Prefer updating existing bullets over appending duplicate or contradictory notes.
-- Move stale long history to `.agent-handoff/archive.md`.
+- Treat `.agent-handoff/snapshot.md` as replace-in-place current state, never an append-only history.
+- Snapshot soft limit: 16 KiB or 240 lines. Hard limit: 32 KiB or 400 lines.
+- Rotate `.agent-handoff/work-log.md` above 64 KiB or 30 dated sections.
+- Rotate `.agent-handoff/validation.md` above 64 KiB or 200 table rows.
+- Keep `.agent-handoff/backlog.md` and `.agent-handoff/risks.md` at or below 32 KiB. Only completed backlog items may be archived mechanically; risks need semantic review.
+- Keep generated archive chunks at or below 128 KiB and keep archive history outside normal recovery.
+- After updating handoff state, run the installed `agent-handoff/scripts/maintain_handoff.py --repo <repo> --compact-if-needed` when available. Archive before replacement and never rewrite unparseable state.
 - In an ongoing uninterrupted chat, reread only relevant handoff files after compaction, resume, uncertainty, or task changes."""
         closeout = """Before any final response for a non-trivial task, update the relevant handoff files without waiting for the user to ask.
 
@@ -431,6 +445,7 @@ Minimum required updates:
 - Record durable decisions in `.agent-handoff/decisions.md`.
 - Update `.agent-handoff/backlog.md` and `.agent-handoff/risks.md` when follow-ups, blockers, risks, or unknowns changed.
 - Remove or rewrite stale state that would mislead the next agent.
+- Run the bundled handoff maintenance script when available and resolve any hard-limit or unsafe-cleanup findings.
 
 If the task was purely conversational and no project state changed, no file update is required."""
         checklist = "Before final response, update the relevant `.agent-handoff/` files with final task status, files changed, commands/checks run and outcomes, and remaining risks, blockers, open questions, or next steps."
@@ -457,6 +472,7 @@ Keep updates concise and evidence-based. Do not paste secrets, credentials, long
         size = """- Keep `Handoff Snapshot` short, current, and action-oriented.
 - Keep only recent, still-relevant work in `Current Work Log`.
 - Prefer updating existing bullets over appending duplicate or contradictory notes.
+- Treat 32 KiB as the single-document soft limit and 64 KiB as the hard limit. Migrate to multi-document layout instead of building complex in-file rotation above the hard limit.
 - In an ongoing uninterrupted chat, reread only relevant sections after compaction, resume, uncertainty, or task changes."""
         closeout = """Before any final response for a non-trivial task, update `AGENT_HANDOFF.md` without waiting for the user to ask.
 
@@ -467,6 +483,7 @@ Minimum required updates:
 - Add `Validation History` entries for commands or manual checks that were run.
 - Record remaining risks, open questions, or follow-up work.
 - Remove or rewrite stale state that would mislead the next agent.
+- Check the single-document size and migrate to multi layout if it exceeds the hard limit.
 
 If the task was purely conversational and no project state changed, no file update is required."""
         checklist = "Before final response, update `AGENT_HANDOFF.md` with final task status, files changed, commands/checks run and outcomes, and remaining risks, blockers, open questions, or next steps."
@@ -563,13 +580,13 @@ Start by reading AGENT_HANDOFF.md, then .agent-handoff/snapshot.md, .agent-hando
 ## Closeout
 
 ```text
-Before ending this turn, update the multi-document handoff: refresh .agent-handoff/snapshot.md, update .agent-handoff/work-log.md, record .agent-handoff/validation.md, update .agent-handoff/backlog.md and .agent-handoff/risks.md, and remove or rewrite stale state. Then report what changed, what was validated, and what remains.
+Before ending this turn, update the multi-document handoff: replace the current state in .agent-handoff/snapshot.md, update .agent-handoff/work-log.md, record .agent-handoff/validation.md, update .agent-handoff/backlog.md and .agent-handoff/risks.md, and remove or rewrite stale state. Run the installed agent-handoff maintenance script with --repo <repo> --compact-if-needed when available; resolve hard-limit findings without discarding unparseable or semantically unsafe state. Then report what changed, what was validated, and what remains.
 ```
 
 ## Handoff Quality Review
 
 ```text
-Review and directly repair the multi-document handoff so a new agent can take over. Check that AGENT_HANDOFF.md is only an index, snapshot is current and short, next actions are concrete, paths are locatable, decisions have reasons and evidence, validation is recorded, and stale, contradictory, speculative, or chat-transcript content is removed.
+Review and directly repair the multi-document handoff so a new agent can take over. Check that AGENT_HANDOFF.md is only an index, snapshot is replace-in-place current state within 16 KiB / 240 lines when possible and never above 32 KiB / 400 lines, next actions are concrete, paths are locatable, decisions have reasons and evidence, validation is recorded, and stale, contradictory, speculative, or chat-transcript content is archived or removed safely. Run the bundled maintenance check when available.
 ```
 """
     return """# Agent Session Prompts

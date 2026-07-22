@@ -1,6 +1,6 @@
 ---
 name: agent-handoff
-description: Cross-platform Codex and Claude Code skill for creating, updating, repairing, or reviewing durable repository handoff mechanisms. Supports single-document and multi-document layouts. Use when the user asks to bootstrap cross-session project memory, create or maintain AGENT_HANDOFF.md and .agent-handoff state files, add Codex AGENTS.md rules, add Claude Code .claude/CLAUDE.md rules, create reusable session prompts, install optional Claude Code advisory hooks, enforce closeout, repair stale handoff state, or review handoff quality. Install under ~/.codex/skills/agent-handoff for Codex, ~/.claude/skills/agent-handoff for Claude Code personal use, or repo/.claude/skills/agent-handoff for Claude Code project use.
+description: Cross-platform Codex and Claude Code skill for creating, updating, compacting, rotating, repairing, or reviewing durable repository handoff mechanisms. Supports single-document and multi-document layouts with bounded snapshots and archived history. Use when the user asks to bootstrap cross-session project memory, create or maintain AGENT_HANDOFF.md and .agent-handoff state files, control oversized snapshot or log growth, add Codex AGENTS.md rules, add Claude Code .claude/CLAUDE.md rules, create reusable session prompts, install optional Claude Code advisory hooks, enforce closeout, repair stale handoff state, or review handoff quality. Install under ~/.codex/skills/agent-handoff for Codex, ~/.claude/skills/agent-handoff for Claude Code personal use, or repo/.claude/skills/agent-handoff for Claude Code project use.
 ---
 
 # Agent Handoff
@@ -32,7 +32,8 @@ The same `SKILL.md`, `references/`, and `scripts/` are shared across platforms. 
 3. If bootstrapping a new mechanism, prefer running `scripts/bootstrap_handoff.py` from this skill to create safe scaffolding and idempotent project handoff rule blocks.
 4. If repairing or reviewing an existing mechanism, read `references/quality.md`, inspect the current files, then edit the repository files directly with factual updates.
 5. Always keep the handoff content evidence-based. Use `UNKNOWN` for facts that cannot be verified from the repository or user request.
-6. Re-read files you created or changed before reporting completion.
+6. For multi layout, run `scripts/maintain_handoff.py --repo <repo-root> --compact-if-needed` after meaningful handoff updates and before closeout.
+7. Re-read files you created or changed before reporting completion.
 
 ## Default Files
 
@@ -82,6 +83,32 @@ Useful flags:
 
 After running the script, inspect the generated files and replace placeholder or `UNKNOWN` content with repository-based facts where possible.
 
+## Maintenance Script
+
+Use the deterministic maintenance script for multi-document capacity control:
+
+```bash
+python <skill-dir>/scripts/maintain_handoff.py --repo <repo-root> --check
+python <skill-dir>/scripts/maintain_handoff.py --repo <repo-root> --compact-if-needed
+python <skill-dir>/scripts/maintain_handoff.py --repo <repo-root> --rotate
+```
+
+- `--check` is read-only and reports soft warnings or unresolved hard-limit findings.
+- `--compact-if-needed` archives and normalizes an oversized parseable snapshot, then rotates oversized work-log, validation, and completed backlog records.
+- `--rotate` skips snapshot compaction and rotates only eligible history records.
+- Never rewrite an unparseable snapshot. Never delete risks mechanically. Preserve complete work-log sections and validation rows.
+- The Claude hook does not run this script. It only reports capacity warnings and always remains read-only and non-blocking.
+
+Capacity policy:
+
+- Snapshot soft limit: `16 KiB` or `240` lines.
+- Snapshot hard limit: `32 KiB` or `400` lines.
+- Work log: `64 KiB` or `30` dated sections.
+- Validation history: `64 KiB` or `200` table rows.
+- Backlog and risks: `32 KiB` each.
+- Generated archive chunks: at most `128 KiB` each.
+- Legacy single layout: `32 KiB` soft limit and `64 KiB` hard limit; migrate to multi layout rather than adding complex in-file rotation.
+
 ## Multi-Document Recovery Contract
 
 In `multi` layout, a new agent must recover in this order:
@@ -96,7 +123,7 @@ In `multi` layout, a new agent must recover in this order:
 8. `.agent-handoff/work-log.md` when recent implementation details are needed
 9. `.agent-handoff/archive.md` only for old context
 
-`snapshot.md` must stay short and action-oriented. Use the dedicated files for decisions, validation, backlog, risks, and history.
+`snapshot.md` is replace-in-place current state, not append-only history. Keep it short and action-oriented; use the dedicated files for decisions, validation, backlog, risks, and history. Archive the original before deterministic normalization, and leave the file unchanged when safe parsing is impossible.
 
 ## References
 
@@ -109,6 +136,7 @@ Load only the references needed for the task:
 - `references/quality.md`: Read when reviewing, compressing, repairing, or validating a handoff mechanism.
 - `templates/claude-settings-hooks.json`: Claude Code hook settings snippet for manual review or installation.
 - `templates/handoff-watch.mjs`: Claude Code event-aware advisory hook script template.
+- `scripts/maintain_handoff.py`: Cross-platform read-only checks plus explicit snapshot compaction and history rotation.
 
 ## Closeout
 

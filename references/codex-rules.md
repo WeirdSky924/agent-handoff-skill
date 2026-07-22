@@ -32,7 +32,11 @@ For `--layout multi`, the generated Codex rule instructs future agents to read:
 5. Additional `.agent-handoff/` files only when needed
 6. Task-relevant source files
 
-`AGENT_HANDOFF.md` must remain an index. Current task state belongs in `.agent-handoff/snapshot.md`.
+`AGENT_HANDOFF.md` must remain an index. Current task state belongs in `.agent-handoff/snapshot.md` and replaces stale state rather than appending historical snapshots.
+
+## Capacity Rule
+
+Generated Codex rules use the shared maintenance policy: snapshot soft limit `16 KiB / 240 lines`, hard limit `32 KiB / 400 lines`; work log `64 KiB / 30` dated sections; validation `64 KiB / 200` rows; backlog and risks `32 KiB`; archive chunks `128 KiB`. After handoff updates, run the installed skill's `scripts/maintain_handoff.py --repo <repo> --compact-if-needed` when available. Preserve unparseable state for manual repair.
 
 ## Continuation Recovery Guard
 
@@ -63,7 +67,7 @@ All state stays in `AGENT_HANDOFF.md`.
 
 For non-trivial tasks:
 
-- Multi layout: update the smallest relevant `.agent-handoff/` files before final response.
+- Multi layout: update the smallest relevant `.agent-handoff/` files and run the maintenance check before final response.
 - Single layout: update `AGENT_HANDOFF.md` before final response.
 
 Do not paste secrets, credentials, long logs, full code blocks, or chat transcript dumps.

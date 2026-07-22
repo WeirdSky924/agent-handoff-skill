@@ -13,6 +13,7 @@ This hook guidance is Claude Code specific. Codex does not use Claude hooks, and
 - Never return `decision: "block"`, `continue: false`, or `decision: "approve"`.
 - Never use hook failures to terminate, block, or close an agent session.
 - Never write handoff files from a hook.
+- Never invoke `maintain_handoff.py`, Python, or any other mutating maintenance command from a hook.
 - Never call the network, install dependencies, delete files, start services, or mutate project state.
 - Preserve existing user hook scripts unless they contain the Agent handoff hook markers.
 
@@ -82,6 +83,8 @@ Multi-document layout checks:
 - `AGENT_HANDOFF.md` contains `## Recovery Reading Order`.
 - `AGENT_HANDOFF.md` contains `## Handoff Layout`.
 - `.agent-handoff/snapshot.md` contains `## Current State` when the snapshot file is present.
+- Snapshot capacity is reported at the `16 KiB / 240 line` soft limit and `32 KiB / 400 line` hard limit.
+- Work log (`64 KiB / 30` sections), validation (`64 KiB / 200` rows), backlog (`32 KiB`), and risks (`32 KiB`) overages produce advisory warnings.
 
 Single-document layout checks:
 
@@ -89,6 +92,7 @@ Single-document layout checks:
 - `AGENT_HANDOFF.md` contains `## Current Work Log`.
 - `AGENT_HANDOFF.md` contains `## Validation History`.
 - `AGENT_HANDOFF.md` contains `## Task Backlog`.
+- `AGENT_HANDOFF.md` reports a warning above the `32 KiB` soft limit and recommends multi layout above the `64 KiB` hard limit.
 
 ## Output Policy
 

@@ -24,6 +24,8 @@ AGENT_HANDOFF.md
   backlog.md
   risks.md
   archive.md
+  archive/
+    <rotated-kind>-<timestamp>.md
 ```
 
 ### AGENT_HANDOFF.md
@@ -37,7 +39,7 @@ AGENT_HANDOFF.md
 ## Maintenance Contract
 
 - Keep this file short. It is an index and recovery route, not a work log.
-- Store current task state in `.agent-handoff/snapshot.md`.
+- Store current task state in `.agent-handoff/snapshot.md`; replace stale fields instead of appending historical snapshots.
 - Store durable facts, decisions, validation, backlog, risks, and archives in the dedicated files listed below.
 - Keep all content factual and repository-based. Mark uncertainty as `UNKNOWN`.
 - Do not include secrets, credentials, long logs, full code blocks, or chat transcript dumps.
@@ -53,6 +55,15 @@ AGENT_HANDOFF.md
 - `.agent-handoff/backlog.md`: Pending work and follow-ups.
 - `.agent-handoff/risks.md`: Risks, blockers, unknowns, and user/source confirmations needed.
 - `.agent-handoff/archive.md`: Compressed old history that is not part of normal startup.
+- `.agent-handoff/archive/`: Automatically rotated history chunks, each capped at 128 KiB.
+
+## Size And Rotation Policy
+
+- Snapshot soft limit: 16 KiB or 240 lines. Hard limit: 32 KiB or 400 lines.
+- Work log limit: 64 KiB or 30 dated sections. Validation limit: 64 KiB or 200 table rows.
+- Backlog and risks limit: 32 KiB each. Only completed backlog items may be archived mechanically; risks require Agent review.
+- After updating handoff state, run the installed `agent-handoff/scripts/maintain_handoff.py --repo <repo> --compact-if-needed` when available.
+- Archive before replacement. Leave unparseable or semantically unsafe content unchanged for Agent repair.
 
 ## Recovery Reading Order
 
@@ -99,6 +110,7 @@ AGENT_HANDOFF.md
 ## Recovery Summary
 
 - <one to three bullets with the most important context needed to resume>
+- Replace this current-state snapshot on update; do not append prior snapshots here.
 ```
 
 ### .agent-handoff/workspace.md
@@ -199,9 +211,24 @@ AGENT_HANDOFF.md
 This file stores compressed old history that should not be part of normal startup.
 ```
 
+The maintenance script writes full rotated records to `.agent-handoff/archive/` and adds links to `archive.md`. It splits large records into UTF-8-safe chunks no larger than `128 KiB`.
+
+## Multi-Document Capacity Policy
+
+Run these commands from either the Codex or Claude Code installation of this skill:
+
+```bash
+python <skill-dir>/scripts/maintain_handoff.py --repo <repo-root> --check
+python <skill-dir>/scripts/maintain_handoff.py --repo <repo-root> --compact-if-needed
+```
+
+The second command archives before snapshot replacement, rotates only complete work-log sections and validation rows, archives only completed backlog tasks, and reports risks or malformed state for semantic repair instead of deleting it.
+
 ## Single-Document Layout
 
 Use only for small projects or when the user explicitly wants the legacy one-file structure.
+
+Treat `32 KiB` as the soft limit and `64 KiB` as the hard limit. Migrate to multi layout when the hard limit is reached; do not add complex automatic rotation inside the legacy file.
 
 ````markdown
 # Agent Handoff
@@ -290,5 +317,5 @@ Use prompts that match the chosen layout. For multi-document layout, mention `AG
 For continuation prompts, include an explicit anti-noop guard so the agent does not treat "continue" as a no-response request:
 
 ```text
-Treat this as an explicit request to continue execution. Do not answer "No response requested." First state what you believe the previous step was, identify the next concrete action, then continue. If context is insufficient, recover from AGENT_HANDOFF.md and the required handoff files before acting.
+Treat this as an explicit request to continue execution. Do not answer "No response requested." First state what you believe the previous step was, identify the next concrete action, then continue. If context is insufficient, recover from AGENT_HANDOFF.md and the required handoff files before acting. Before closeout, run the installed handoff maintenance script when available.
 ```

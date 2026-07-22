@@ -38,6 +38,17 @@ const PROMPT_TRIGGERS = [
 const DEFAULT_MAX_AGE_MINUTES = 120;
 const MAX_READ_BYTES = 512 * 1024;
 const INPUT_RETRY_LIMIT = 2;
+const SNAPSHOT_SOFT_BYTES = 16 * 1024;
+const SNAPSHOT_SOFT_LINES = 240;
+const SNAPSHOT_HARD_BYTES = 32 * 1024;
+const SNAPSHOT_HARD_LINES = 400;
+const WORK_LOG_MAX_BYTES = 64 * 1024;
+const WORK_LOG_MAX_SECTIONS = 30;
+const VALIDATION_MAX_BYTES = 64 * 1024;
+const VALIDATION_MAX_ROWS = 200;
+const CURRENT_STATE_MAX_BYTES = 32 * 1024;
+const SINGLE_SOFT_BYTES = 32 * 1024;
+const SINGLE_HARD_BYTES = 64 * 1024;
 
 function optionValue(name) {
   const flag = `--${name}`;
@@ -120,6 +131,70 @@ function ageMinutes(filePath) {
   }
 }
 
+function fileSize(filePath) {
+  try {
+    return fs.statSync(filePath).size;
+  } catch {
+    return null;
+  }
+}
+
+function countLines(text) {
+  if (!text) return 0;
+  const lines = text.split(/\r?\n/);
+  return lines.at(-1) === "" ? lines.length - 1 : lines.length;
+}
+
+function addMultiCapacityWarnings(health) {
+  const snapshotPath = path.join(health.handoffDir, "snapshot.md");
+  const snapshotSize = fileSize(snapshotPath);
+  if (snapshotSize !== null) {
+    const snapshotLines = countLines(readSmallText(snapshotPath));
+    const metrics = `${snapshotSize} bytes, ${snapshotLines} lines`;
+    if (snapshotSize > SNAPSHOT_HARD_BYTES || snapshotLines > SNAPSHOT_HARD_LINES) {
+      health.warnings.push(
+        `snapshot.md exceeds the 32 KiB / 400 line hard limit (${metrics}); run handoff maintenance before closeout.`
+      );
+    } else if (snapshotSize > SNAPSHOT_SOFT_BYTES || snapshotLines > SNAPSHOT_SOFT_LINES) {
+      health.warnings.push(
+        `snapshot.md exceeds the 16 KiB / 240 line soft limit (${metrics}); compact it before closeout.`
+      );
+    }
+  }
+
+  const workLogPath = path.join(health.handoffDir, "work-log.md");
+  const workLogSize = fileSize(workLogPath);
+  if (workLogSize !== null) {
+    const sections = (readSmallText(workLogPath).match(/^## \d{4}-\d{2}-\d{2}(?:\b|\s)/gm) || []).length;
+    if (workLogSize > WORK_LOG_MAX_BYTES || sections > WORK_LOG_MAX_SECTIONS) {
+      health.warnings.push(
+        `work-log.md exceeds 64 KiB or ${WORK_LOG_MAX_SECTIONS} dated sections; rotate old complete sections.`
+      );
+    }
+  }
+
+  const validationPath = path.join(health.handoffDir, "validation.md");
+  const validationSize = fileSize(validationPath);
+  if (validationSize !== null) {
+    const tableRows = Math.max(
+      0,
+      readSmallText(validationPath).split(/\r?\n/).filter((line) => line.trimStart().startsWith("|")).length - 2
+    );
+    if (validationSize > VALIDATION_MAX_BYTES || tableRows > VALIDATION_MAX_ROWS) {
+      health.warnings.push(
+        `validation.md exceeds 64 KiB or ${VALIDATION_MAX_ROWS} rows; rotate old complete rows.`
+      );
+    }
+  }
+
+  for (const name of ["backlog.md", "risks.md"]) {
+    const size = fileSize(path.join(health.handoffDir, name));
+    if (size !== null && size > CURRENT_STATE_MAX_BYTES) {
+      health.warnings.push(`${name} exceeds the 32 KiB current-state limit; Agent review is required.`);
+    }
+  }
+}
+
 function containsAny(text, terms) {
   const lower = text.toLowerCase();
   return terms.some((term) => lower.includes(term.toLowerCase()));
@@ -170,6 +245,7 @@ function buildHealth(projectDir, maxAgeMinutes, parseWarning) {
     if (snapshot && !snapshot.includes("## Current State")) {
       health.warnings.push(".agent-handoff/snapshot.md does not contain '## Current State'.");
     }
+    addMultiCapacityWarnings(health);
   } else {
     health.layout = "single";
 
@@ -177,6 +253,17 @@ function buildHealth(projectDir, maxAgeMinutes, parseWarning) {
       if (!content.includes(heading)) {
         health.missing.push(heading);
       }
+    }
+
+    const handoffSize = fileSize(handoffPath);
+    if (handoffSize !== null && handoffSize > SINGLE_HARD_BYTES) {
+      health.warnings.push(
+        `AGENT_HANDOFF.md exceeds the 64 KiB single-layout hard limit (${handoffSize} bytes); migrate to multi layout.`
+      );
+    } else if (handoffSize !== null && handoffSize > SINGLE_SOFT_BYTES) {
+      health.warnings.push(
+        `AGENT_HANDOFF.md exceeds the 32 KiB single-layout soft limit (${handoffSize} bytes).`
+      );
     }
   }
 

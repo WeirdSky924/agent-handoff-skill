@@ -10,7 +10,7 @@ A **durable handoff mechanism skill** for Codex, Claude Code, and other AI codin
 
 The problem is simple: AI agents can be powerful, but a chat window is not reliable project memory. Context gets compressed, sessions end, agents change, but the engineering work still needs to continue. `agent-handoff` turns the state that used to live in "the previous agent's head" into repository-local documentation that can be maintained, verified, and handed to the next agent.
 
-It is not a chat-summary tool, and it is not a dumping ground for every historical detail. It is closer to a lightweight project flight recorder: it keeps the current objective, status, active files, key decisions, validation results, risks, blockers, and next actions in a compact form so the next agent can continue safely.
+It is not a chat-summary tool, and it is not a dumping ground for every historical detail. It is closer to a lightweight project flight recorder: it keeps the current objective, status, active files, key decisions, validation results, risks, blockers, and next actions in a compact form so the next agent can continue safely. It now also includes deterministic capacity maintenance so snapshots and history logs cannot grow without bounds.
 
 ## Platform Compatibility
 
@@ -54,6 +54,7 @@ The default mechanism is now a **multi-document layout**, while the legacy singl
 | `.agent-handoff/backlog.md` | Pending work and follow-ups. |
 | `.agent-handoff/risks.md` | Risks, blockers, `UNKNOWN` items, and confirmations needed. |
 | `.agent-handoff/archive.md` | Compressed old history that is not part of normal recovery. |
+| `.agent-handoff/archive/` | Full rotated history chunks, each capped at 128 KiB. |
 | `AGENTS.md` | Codex project instructions file. Stores the handoff maintenance rules that Codex reads for the repository. |
 | `.claude/CLAUDE.md` | Recommended project-level Claude Code rules. Requires future agents to read and maintain the handoff document. |
 | `AGENT_SESSION_PROMPTS.md` | Optional reusable prompts for new-window startup, task continuation, closeout, and handoff quality review. |
@@ -80,8 +81,9 @@ The skill creates a loop:
 1. **Inspect**: Read the repository shape before writing templates.
 2. **Bootstrap**: Create or merge the necessary handoff files and project rules.
 3. **Maintain**: During work, record objectives, decisions, active files, validation, and risks.
-4. **Closeout**: Before finishing any non-trivial task, refresh `AGENT_HANDOFF.md` or the relevant `.agent-handoff/` files.
-5. **Recover**: The next agent starts from the handoff document, then reads only the source files needed for the current task.
+4. **Compact / Rotate**: Check capacity, archive before snapshot compaction, and rotate long logs along complete record boundaries.
+5. **Closeout**: Before finishing any non-trivial task, refresh and maintain `AGENT_HANDOFF.md` or the relevant `.agent-handoff/` files.
+6. **Recover**: The next agent starts from the handoff document, then reads only the source files needed for the current task.
 
 The point is not to make agents read less source code. The point is to make agents read less irrelevant history. `AGENT_HANDOFF.md` tells the next agent where to start reading. Implementation details still need to be verified from source files and tests.
 
@@ -348,7 +350,36 @@ Then apply:
 python scripts\bootstrap_handoff.py --repo . --install-hooks
 ```
 
-This creates `.claude/hooks/handoff-watch.mjs` and merges missing `SessionStart`, `UserPromptSubmit`, `PreCompact`, `Stop`, `SubagentStop`, and `SessionEnd` hook entries into `.claude/settings.json`. The hook is event-aware and advisory only: it injects handoff health and recovery reading order on startup; adds context when the user says things like `continue`, `resume`, `handoff`, `compact`, or `closeout`; and reminds the agent before compaction or closeout. It always returns `continue: true`, never returns `decision: "block"` or `continue: false`, never writes handoff files, and will not terminate the session if `AGENT_HANDOFF.md` is missing or the check fails unexpectedly.
+This creates `.claude/hooks/handoff-watch.mjs` and merges missing `SessionStart`, `UserPromptSubmit`, `PreCompact`, `Stop`, `SubagentStop`, and `SessionEnd` hook entries into `.claude/settings.json`. The hook is event-aware and advisory only: it injects handoff health and recovery reading order on startup; adds context when the user says things like `continue`, `resume`, `handoff`, `compact`, or `closeout`; reminds the agent before compaction or closeout; and reports snapshot or log capacity overages. It always returns `continue: true`, never returns `decision: "block"` or `continue: false`, never invokes Python, never writes handoff files, and will not terminate the session if `AGENT_HANDOFF.md` is missing or the check fails unexpectedly.
+
+### Check Capacity, Compact Snapshots, And Rotate History
+
+Long-lived projects continuously accumulate validation records and work logs. A vague instruction to "keep it short" is not enough to stop a snapshot from turning back into a transcript. The maintenance script gives Codex and Claude Code one deterministic policy:
+
+```powershell
+# Read-only inspection; writes nothing
+python scripts\maintain_handoff.py --repo . --check
+
+# Compact an oversized snapshot and rotate eligible history
+python scripts\maintain_handoff.py --repo . --compact-if-needed
+
+# Skip snapshot compaction and rotate eligible history only
+python scripts\maintain_handoff.py --repo . --rotate
+```
+
+When running from an installed skill, replace `scripts\maintain_handoff.py` with the actual skill path, such as `~/.codex/skills/agent-handoff/scripts/maintain_handoff.py` or `~/.claude/skills/agent-handoff/scripts/maintain_handoff.py`.
+
+| File | Soft limit / trigger | Hard limit / cap | Automatic action |
+| --- | --- | --- | --- |
+| `snapshot.md` | 16 KiB or 240 lines | 32 KiB or 400 lines | Archive the original, then retain bounded current state, next actions, active files, questions, and recovery summary. |
+| `work-log.md` | 64 KiB or 30 dated sections | Preserve at least one newest complete section | Rotate old complete `## YYYY-MM-DD` sections. |
+| `validation.md` | 64 KiB or 200 table records | Preserve at least one newest complete row | Rotate complete Markdown table rows. |
+| `backlog.md` | 32 KiB | 32 KiB | Archive only mechanically identifiable completed `[x]` items. |
+| `risks.md` | 32 KiB | 32 KiB | Never delete automatically; report for semantic Agent review. |
+| Single-file `AGENT_HANDOFF.md` | 32 KiB | 64 KiB | Migrate to multi layout at the hard limit instead of adding complex in-file rotation. |
+| `.agent-handoff/archive/*.md` | Created as needed | 128 KiB each | Split on UTF-8-safe boundaries and add links to `archive.md`. |
+
+Safety matters more than forcing a smaller file. If snapshot parsing fails, the script preserves the original. Risks require semantic understanding and are never deleted mechanically. Every automatically compacted snapshot is archived in full before atomic replacement. `--check` is read-only, and the hook only reminds; writes happen only when an Agent explicitly runs `--compact-if-needed` or `--rotate`.
 
 ## Repository Structure
 
@@ -375,6 +406,9 @@ agent-handoff/
     templates.md
   scripts/
     bootstrap_handoff.py
+    maintain_handoff.py
+  tests/
+    test_maintain_handoff.py
 ```
 
 Multi layout creates this structure in the target project:
@@ -390,6 +424,8 @@ AGENT_HANDOFF.md
   backlog.md
   risks.md
   archive.md
+  archive/
+    <type>-<timestamp>.md
 ```
 
 Responsibilities:
@@ -403,6 +439,8 @@ Responsibilities:
 - `templates/handoff-watch.mjs`: Claude Code event-aware handoff reminder hook script template.
 - `references/quality.md`: Quality standards for reviewing, repairing, and compressing handoff documents.
 - `scripts/bootstrap_handoff.py`: Conservative setup script. Creates missing files, single or multi handoff layouts, idempotently merges rules, and can optionally install Claude Code soft reminder hooks.
+- `scripts/maintain_handoff.py`: Shared Codex / Claude Code capacity checks, snapshot compaction, and history rotation.
+- `tests/test_maintain_handoff.py`: Verifies read-only checks, archive-before-replace behavior, structured rotation, semantic safety, and archive chunk caps.
 - `README.md` / `README_en.md`: GitHub documentation. Not required at runtime.
 
 ## Design Principles
@@ -451,6 +489,10 @@ The default behavior is project-local. Do not automatically modify user-level co
 
 Generated `AGENTS.md` and `.claude/CLAUDE.md` rules require agents to read files in small, anchored ranges. Read `offset` must be treated as a line number. If Read returns empty output, offset warnings, inconsistent line numbers, `file is shorter than the provided offset`, or an API termination after a Read attempt, the agent must stop paging with Read and re-anchor with `rg -n`, `wc -l`, `sed -n`, or another read-only inspection command.
 
+### 7. Bounded Current State, Traceable Full History
+
+`snapshot.md` uses replacement semantics rather than appending each old snapshot to the bottom. At the soft limit, the maintenance script writes the original to a timestamped archive chunk before rendering bounded current state. If safe parsing is impossible, it leaves the original unchanged and asks the Agent to repair it. Recovery stays lightweight while full history remains traceable.
+
 ## Quality Checklist
 
 A good `AGENT_HANDOFF.md` should satisfy:
@@ -467,11 +509,14 @@ A good `AGENT_HANDOFF.md` should satisfy:
 Multi-document layout must also satisfy:
 
 - `AGENT_HANDOFF.md` is only an index and recovery route, not a task log.
-- `snapshot.md` is short and explains current objective, status, next action, active files, and blockers.
+- `snapshot.md` is replace-in-place current state, normally at or below 16 KiB / 240 lines, and never grows beyond 32 KiB / 400 lines without an explicit finding.
 - `risks.md` contains all active risks, blockers, and `UNKNOWN` items.
 - `backlog.md` contains actionable pending work, not completed stale items.
 - `validation.md` clearly records passed, failed, and not-run checks.
 - `decisions.md` includes reasons and evidence for every durable decision.
+- `work-log.md` stays within 64 KiB / 30 dated sections, and `validation.md` stays within 64 KiB / 200 records.
+- `backlog.md` and `risks.md` stay within 32 KiB; automatic archival never deletes pending work or risk semantics.
+- Generated archive chunks stay within 128 KiB and are not required for normal recovery.
 - A new agent can recover the previous agent's state by reading the index, snapshot, risks, backlog, and only the necessary validation/decision files.
 
 ## Notes
@@ -479,6 +524,7 @@ Multi-document layout must also satisfy:
 - If the project commits `AGENT_HANDOFF.md`, be careful not to include private context, sensitive paths, logs, or internal information.
 - If the project gitignores the handoff document, make sure the team understands that it is local state.
 - Hooks are optional reinforcement. They should not replace the agent's responsibility to close out properly; the default setup does not install hooks, and only explicit `--install-hooks` writes `.claude/hooks/handoff-watch.mjs` and merges `.claude/settings.json`. The current hook covers `SessionStart`, `UserPromptSubmit`, `PreCompact`, `Stop`, `SubagentStop`, and `SessionEnd`, emitting only soft context or advisory reminders.
+- The hook detects capacity and reports reminders but never runs the maintenance script. This avoids blocking a PostToolUse or Stop phase on Python startup, file locks, or maintenance failures.
 - If the target project already has an unmarked `.claude/hooks/handoff-watch.mjs`, the script preserves it and does not wire settings to that unverified script, avoiding accidental use of custom hooks that might block a session.
 - `bootstrap_handoff.py` does not overwrite an existing `AGENT_HANDOFF.md`; existing state must be repaired from repository facts.
 
