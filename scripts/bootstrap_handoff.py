@@ -6,7 +6,7 @@ This script is intentionally conservative:
 - It supports two layouts:
   - single: legacy single-file AGENT_HANDOFF.md
   - multi: AGENT_HANDOFF.md as an index plus .agent-handoff/*.md state files
-- It creates or updates a marked handoff protocol block in AGENTS.md for Codex.
+- It creates or updates a marked handoff protocol block in AGENTS.md for Codex or DeepSeek Harness.
 - It creates or updates a marked handoff protocol block in .claude/CLAUDE.md for Claude Code.
 - It does not overwrite existing handoff state.
 """
@@ -64,7 +64,7 @@ def single_handoff_template(repo: Path) -> str:
 ## Handoff Snapshot
 
 - Last updated: {today}
-- Last agent: Codex/Claude Code
+- Last agent: Codex/Claude Code/DeepSeek Harness
 - Workspace root: `{root}`
 - Current objective: Establish durable Agent handoff mechanism for this repository.
 - Current status: initialized
@@ -115,7 +115,7 @@ def single_handoff_template(repo: Path) -> str:
 - Objective: Establish durable Agent handoff mechanism.
 - Changed files:
   - `AGENT_HANDOFF.md`: Created initial durable handoff state.
-  - `AGENTS.md`: Created or updated Codex project-level handoff rules if enabled.
+  - `AGENTS.md`: Created or updated Codex/DeepSeek Harness project-level handoff rules if enabled.
   - `.claude/CLAUDE.md`: Created or updated Claude Code project-level handoff rules if enabled.
 - Result: Initial handoff mechanism scaffolded.
 - Remaining risks: Repository-specific context still contains `UNKNOWN` until source files are inspected.
@@ -216,7 +216,7 @@ def multi_index_template(repo: Path) -> str:
 
 ## Project Rule Targets
 
-- Codex project rules: `AGENTS.md`
+- Codex / DeepSeek Harness project rules: `AGENTS.md`
 - Claude Code project rules: `.claude/CLAUDE.md`
 
 ## Closeout Rule
@@ -239,7 +239,7 @@ def multi_snapshot_template(repo: Path) -> str:
 ## Current State
 
 - Last updated: {today}
-- Last agent: Codex/Claude Code
+- Last agent: Codex/Claude Code/DeepSeek Harness
 - Workspace root: `{repo}`
 - Current objective: Establish durable multi-document Agent handoff mechanism for this repository.
 - Current status: initialized
@@ -321,7 +321,7 @@ def multi_work_log_template() -> str:
 - Changed files:
   - `AGENT_HANDOFF.md`: Created handoff index.
   - `.agent-handoff/`: Created structured handoff state files.
-  - `AGENTS.md`: Created or updated Codex project-level handoff rules if enabled.
+  - `AGENTS.md`: Created or updated Codex/DeepSeek Harness project-level handoff rules if enabled.
   - `.claude/CLAUDE.md`: Created or updated Claude Code project-level handoff rules if enabled.
 - Result: Initial multi-document handoff mechanism scaffolded.
 - Remaining risks: Repository-specific context still contains `UNKNOWN` until source files are inspected.
@@ -542,11 +542,10 @@ If the user says `continue`, `继续`, `Continue from where you left off.`, or a
 {checklist}"""
 
 
-def rule_block(platform: str, layout: str) -> str:
-    title = "Codex Agent Handoff Protocol" if platform == "codex" else "Claude Code Agent Handoff Protocol"
+def rule_block(layout: str) -> str:
     layout_label = "multi-document" if layout == "multi" else "single-document"
     return f"""{START}
-# {title}
+# Agent Handoff Protocol
 
 Layout: {layout_label}
 
@@ -824,9 +823,12 @@ def main() -> int:
     parser.add_argument("--repo", default=".", help="Repository root. Defaults to current directory.")
     parser.add_argument(
         "--platform",
-        choices=["codex", "claude", "both"],
+        choices=["codex", "claude", "dsh", "both"],
         default="both",
-        help="Project rule target: codex updates AGENTS.md, claude updates .claude/CLAUDE.md, both updates both.",
+        help=(
+            "Project rule target: codex and dsh update AGENTS.md, claude updates "
+            ".claude/CLAUDE.md, both updates both files and covers all three hosts."
+        ),
     )
     parser.add_argument(
         "--layout",
@@ -838,7 +840,11 @@ def main() -> int:
     parser.add_argument("--gitignore", action="store_true", help="Add local handoff files to .gitignore if missing.")
     parser.add_argument("--allow-readonly", action="store_true", help="Claude Code only: merge safe read-only query permissions into .claude/settings.json.")
     parser.add_argument("--install-hooks", action="store_true", help="Claude Code only: install advisory handoff hooks into .claude/hooks and merge .claude/settings.json.")
-    parser.add_argument("--skip-codex-rules", action="store_true", help="Do not create or update AGENTS.md.")
+    parser.add_argument(
+        "--skip-codex-rules",
+        action="store_true",
+        help="Do not create or update the shared Codex/DSH AGENTS.md rules.",
+    )
     parser.add_argument("--skip-claude-rules", action="store_true", help="Do not create or update .claude/CLAUDE.md.")
     parser.add_argument("--dry-run", action="store_true", help="Print planned changes without writing files.")
     args = parser.parse_args()
@@ -855,17 +861,17 @@ def main() -> int:
     else:
         create_single_layout(repo, args.dry_run, changed, notes)
 
-    write_codex = args.platform in ("codex", "both") and not args.skip_codex_rules
+    write_agents = args.platform in ("codex", "dsh", "both") and not args.skip_codex_rules
     write_claude = args.platform in ("claude", "both") and not args.skip_claude_rules
 
-    if write_codex:
-        codex_path = repo / "AGENTS.md"
-        updated = replace_marked_block(read_text(codex_path), rule_block("codex", args.layout))
-        write_text(codex_path, updated, args.dry_run, changed)
+    if write_agents:
+        agents_path = repo / "AGENTS.md"
+        updated = replace_marked_block(read_text(agents_path), rule_block(args.layout))
+        write_text(agents_path, updated, args.dry_run, changed)
 
     if write_claude:
         claude_path = repo / ".claude" / "CLAUDE.md"
-        updated = replace_marked_block(read_text(claude_path), rule_block("claude", args.layout))
+        updated = replace_marked_block(read_text(claude_path), rule_block(args.layout))
         write_text(claude_path, updated, args.dry_run, changed)
 
     if args.session_prompts:

@@ -1,23 +1,32 @@
 ---
 name: agent-handoff
-description: Cross-platform Codex and Claude Code skill for creating, updating, compacting, rotating, repairing, or reviewing durable repository handoff mechanisms. Supports single-document and multi-document layouts with bounded snapshots and archived history. Use when the user asks to bootstrap cross-session project memory, create or maintain AGENT_HANDOFF.md and .agent-handoff state files, control oversized snapshot or log growth, add Codex AGENTS.md rules, add Claude Code .claude/CLAUDE.md rules, create reusable session prompts, install optional Claude Code advisory hooks, enforce closeout, repair stale handoff state, or review handoff quality. Install under ~/.codex/skills/agent-handoff for Codex, ~/.claude/skills/agent-handoff for Claude Code personal use, or repo/.claude/skills/agent-handoff for Claude Code project use.
+description: Cross-platform skill for Codex, Claude Code, and DeepSeek Harness (DSH) that creates, updates, compacts, rotates, repairs, and reviews durable repository handoffs. Use when bootstrapping cross-session memory; creating or maintaining AGENT_HANDOFF.md and .agent-handoff files; adding AGENTS.md or .claude/CLAUDE.md rules; enforcing continuation recovery or closeout; managing oversized snapshots and logs; installing optional Claude advisory hooks; or reviewing handoff quality.
 ---
 
 # Agent Handoff
 
 ## Overview
 
-Use this cross-platform skill in Codex or Claude Code to establish repository-local continuity memory so a future agent can recover objective, status, decisions, validation, risks, and next actions without relying on previous chat history.
+Use this cross-platform skill in Codex, Claude Code, or DeepSeek Harness (DSH) to establish repository-local continuity memory so a future agent can recover objective, status, decisions, validation, risks, and next actions without relying on previous chat history.
 
-The handoff mechanism is repository-local by default. Do not edit user-level `~/.claude/CLAUDE.md` or other user-level agent configuration unless the user explicitly asks for it.
+The handoff mechanism is repository-local by default. Do not edit user-level Codex, Claude Code, or DSH instructions, profiles, or settings unless the user explicitly asks for it.
 
 ## Platform Installation
 
 - Codex personal skill: install this folder at `~/.codex/skills/agent-handoff`.
 - Claude Code personal skill: install this folder at `~/.claude/skills/agent-handoff`.
 - Claude Code project skill: install this folder at `<repo>/.claude/skills/agent-handoff`.
+- DSH personal skill: install this folder at `~/.dsh/skills/agent-handoff`.
+- DSH shared-agent skill: install this folder at `~/.agents/skills/agent-handoff`.
+- DSH project skill: install this folder at `<repo>/.dsh/skills/agent-handoff` or `<repo>/.agents/skills/agent-handoff`.
 
-The same `SKILL.md`, `references/`, and `scripts/` are shared across platforms. `agents/openai.yaml` is Codex UI metadata and is not required by Claude Code.
+DSH does not discover `~/.codex/skills`, `~/.claude/skills`, or `<repo>/.claude/skills`; install or link the bundle into one of its roots above. The same `SKILL.md`, `references/`, and `scripts/` are shared across platforms. `agents/openai.yaml` is Codex UI metadata and is ignored by Claude Code and DSH.
+
+## Runtime Prerequisites
+
+- Reading and applying the Markdown instructions requires no extra runtime beyond the host agent.
+- Running `scripts/bootstrap_handoff.py` or `scripts/maintain_handoff.py` requires Python 3.10 or newer.
+- DSH itself requires Node.js but does not guarantee Python. When Python is unavailable, create or repair files manually from `references/templates.md` and perform capacity review from `references/quality.md`.
 
 ## Layout Choice
 
@@ -39,7 +48,7 @@ The same `SKILL.md`, `references/`, and `scripts/` are shared across platforms. 
 
 - `AGENT_HANDOFF.md`: Required durable handoff state at the repository root.
 - `.agent-handoff/`: Multi-document layout directory for snapshot, workspace, decisions, work log, validation, backlog, risks, and archive.
-- `AGENTS.md`: Recommended Codex project instructions file. Merge a marked handoff protocol block; do not overwrite unrelated project guidance.
+- `AGENTS.md`: Recommended shared Codex and DSH project instructions file. Merge a marked handoff protocol block; do not overwrite unrelated project guidance.
 - `.claude/CLAUDE.md`: Recommended project-level Claude Code rules generated for repositories that use Claude Code. Merge a marked handoff protocol block; do not overwrite unrelated rules.
 - `AGENT_SESSION_PROMPTS.md`: Optional reusable prompts for new window startup, continuation, closeout, and quality review.
 - `.gitignore`: Optionally add local handoff files when the project does not want to commit them.
@@ -48,7 +57,7 @@ The same `SKILL.md`, `references/`, and `scripts/` are shared across platforms. 
 
 ## Idempotency Rules
 
-Use these markers for both Codex `AGENTS.md` and Claude Code `.claude/CLAUDE.md` project-level handoff rules:
+Use these markers for Codex/DSH `AGENTS.md` and Claude Code `.claude/CLAUDE.md` project-level handoff rules:
 
 ```markdown
 <!-- AGENT_HANDOFF_PROTOCOL:START -->
@@ -71,13 +80,13 @@ python <skill-dir>/scripts/bootstrap_handoff.py --repo <repo-root> --platform bo
 Useful flags:
 
 - `--repo <path>`: Target repository root. Defaults to the current working directory.
-- `--platform codex|claude|both`: Project rule target. `codex` updates `AGENTS.md`; `claude` updates `.claude/CLAUDE.md`; `both` updates both.
+- `--platform codex|claude|dsh|both`: Project rule target. `codex` and `dsh` update the shared `AGENTS.md`; `claude` updates `.claude/CLAUDE.md`; `both` updates both files and therefore covers all three hosts.
 - `--layout single|multi`: Handoff structure. `multi` is default; `single` preserves the legacy single-file layout.
 - `--session-prompts`: Create `AGENT_SESSION_PROMPTS.md` if missing.
 - `--gitignore`: Add local handoff files to `.gitignore` if missing.
 - `--allow-readonly`: Claude Code only. Merge safe read-only query permissions into `.claude/settings.json`.
 - `--install-hooks`: Claude Code only. Install event-aware advisory handoff hook script and merge missing hook entries into `.claude/settings.json`. Hooks always exit `0`, never block, never write handoff files, and only emit soft `hookSpecificOutput.additionalContext` or `systemMessage` reminders when needed.
-- `--skip-codex-rules`: Do not create or update `AGENTS.md`.
+- `--skip-codex-rules`: Do not create or update the shared Codex / DSH `AGENTS.md` rules. The legacy flag name is retained for compatibility.
 - `--skip-claude-rules`: Do not create or update `.claude/CLAUDE.md`.
 - `--dry-run`: Show planned changes without writing files.
 
@@ -130,8 +139,9 @@ In `multi` layout, a new agent must recover in this order:
 Load only the references needed for the task:
 
 - `references/templates.md`: Read when creating or manually repairing `AGENT_HANDOFF.md` or `AGENT_SESSION_PROMPTS.md`.
-- `references/codex-rules.md`: Read when creating or updating Codex `AGENTS.md`.
+- `references/codex-rules.md`: Read when creating or updating the shared Codex / DSH `AGENTS.md` block.
 - `references/claude-rules.md`: Read when creating or updating Claude Code `.claude/CLAUDE.md`.
+- `references/dsh-rules.md`: Read when installing for DSH or checking DSH discovery and runtime boundaries.
 - `references/hooks.md`: Read only when the user asks for hook-based enforcement.
 - `references/quality.md`: Read when reviewing, compressing, repairing, or validating a handoff mechanism.
 - `templates/claude-settings-hooks.json`: Claude Code hook settings snippet for manual review or installation.

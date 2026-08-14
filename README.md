@@ -6,7 +6,7 @@
 
 ![Agent Handoff Skill hero](assets/readme/hero.svg)
 
-一个给 Codex / Claude Code / AI Coding Agent 使用的 **可持续接力机制 skill**。
+一个给 Codex / Claude Code / DeepSeek Harness（DSH）使用的 **可持续接力机制 skill**。
 
 它解决的问题很朴素：AI Agent 很强，但会话窗口不是可靠的项目记忆。上下文会压缩，会话会中断，Agent 会更换，开发任务却还要继续。`agent-handoff` 的目标就是把“上一位 Agent 脑子里的状态”沉淀成仓库内可维护、可验证、可接手的项目文档。
 
@@ -14,15 +14,18 @@
 
 ## 平台兼容性
 
-这个仓库里的 skill 不是只给 Codex 用。它采用的是通用的 `SKILL.md + references/ + scripts/` 结构，可以按不同工具的发现路径安装：
+这个仓库里的 skill 不是只给 Codex 用。它采用通用的 `SKILL.md + references/ + scripts/` 结构，可以按不同工具的发现路径安装：
 
 | 平台 | 安装位置 | 触发方式 |
 | --- | --- | --- |
 | Codex | `~/.codex/skills/agent-handoff` | Codex 根据 skill 描述自动触发，或用户明确要求使用该 skill。 |
 | Claude Code 个人级 Skill | `~/.claude/skills/agent-handoff` | Claude Code 自动发现，或用 `/agent-handoff` 显式调用。 |
 | Claude Code 项目级 Skill | `<repo>/.claude/skills/agent-handoff` | 只对当前仓库生效，适合团队随仓库共享。 |
+| DSH 个人级 Skill | `~/.dsh/skills/agent-handoff` | DSH 自动加入模型目录，也可用 `/agent-handoff` 显式调用。 |
+| DSH 共享 Agent Skill | `~/.agents/skills/agent-handoff` | 使用 DSH 的共享 Agent Skills 根目录。 |
+| DSH 项目级 Skill | `<repo>/.dsh/skills/agent-handoff` 或 `<repo>/.agents/skills/agent-handoff` | 只对当前 Git 仓库生效，项目目录优先于个人目录。 |
 
-当前仓库里的 `agents/openai.yaml` 是 Codex UI 元数据；Claude Code 不需要它。保留它不会影响 Claude Code 使用这个 skill。
+DSH 不会扫描 `~/.codex/skills`、`~/.claude/skills` 或 `<repo>/.claude/skills`，需要把仓库安装或链接到上表中的 DSH 根目录。安装到默认根目录不需要修改 DSH profile、patch 或 settings。当前仓库里的 `agents/openai.yaml` 是 Codex UI 元数据；Claude Code 和 DSH 会忽略它。
 
 ## 为什么会有这个 Skill
 
@@ -55,7 +58,7 @@
 | `.agent-handoff/risks.md` | 风险、阻塞点、`UNKNOWN` 和需要确认的信息。 |
 | `.agent-handoff/archive.md` | 压缩后的旧历史，不参与默认恢复。 |
 | `.agent-handoff/archive/` | 自动轮换出的完整历史分片，单个文件不超过 128 KiB。 |
-| `AGENTS.md` | Codex 项目级 instructions 文件，写入 Codex 会读取的接力维护规则。 |
+| `AGENTS.md` | Codex 与 DSH 共用的项目级 instructions 文件，写入平台中性的接力维护规则。 |
 | `.claude/CLAUDE.md` | 项目级 Claude Code 规则，要求未来 Agent 启动时读取接力文档，并在收尾前更新。 |
 | `AGENT_SESSION_PROMPTS.md` | 可选文件，保存新窗口启动、继续任务、收尾、接力质量审查等常用提示词。 |
 | `.claude/settings.json` | 可选文件，仅在用户要求时合并安全的只读查询权限或 Claude Code 软提醒 hook 条目。 |
@@ -105,7 +108,7 @@
 
 ### 1. 新项目初始化
 
-当你打开一个新仓库，希望以后每个 Agent 都能自动维护接力状态，可以直接让 Codex 使用这个 skill：
+当你打开一个新仓库，希望以后每个 Agent 都能自动维护接力状态，可以在 Codex、Claude Code 或 DSH 中使用这个 skill：
 
 ```text
 使用 agent-handoff skill，为当前项目初始化接力机制。
@@ -113,7 +116,7 @@
 
 它会检查仓库结构，创建 `AGENT_HANDOFF.md`，并按平台把 Durable Handoff 规则合并到：
 
-- Codex：`AGENTS.md`
+- Codex / DSH：`AGENTS.md`
 - Claude Code：`.claude/CLAUDE.md`
 
 适合：
@@ -245,9 +248,38 @@ git clone https://github.com/WeirdSky924/agent-handoff-skill .claude\skills\agen
 
 项目级安装适合团队标准化接力流程。个人级安装适合你在所有项目中复用。
 
-### 方式四：只使用脚本
+### 方式四：作为 DeepSeek Harness Skill 使用
+
+DSH 个人级安装：
+
+```powershell
+git clone https://github.com/WeirdSky924/agent-handoff-skill C:\Users\<you>\.dsh\skills\agent-handoff
+```
+
+也可以使用 DSH 支持的共享 Agent Skills 根目录：
+
+```powershell
+git clone https://github.com/WeirdSky924/agent-handoff-skill C:\Users\<you>\.agents\skills\agent-handoff
+```
+
+项目级安装：
+
+```powershell
+mkdir .dsh\skills
+git clone https://github.com/WeirdSky924/agent-handoff-skill .dsh\skills\agent-handoff
+```
+
+DSH 会默认扫描这些目录，不需要修改 profile、`cordis.patch.yml` 或 `settings.yaml`。安装后可由模型自动加载，也可以显式输入：
+
+```text
+/agent-handoff 为当前项目初始化接力机制
+```
+
+### 方式五：只使用脚本
 
 如果你不想注册为 skill，也可以直接运行脚本：
+
+> `bootstrap_handoff.py` 和 `maintain_handoff.py` 需要 Python 3.10 或更高版本。DSH 本身只要求 Node.js，不保证系统已经安装 Python。
 
 ```powershell
 python scripts\bootstrap_handoff.py --repo E:\path\to\your\repo --platform both --layout multi --session-prompts --gitignore
@@ -258,14 +290,14 @@ python scripts\bootstrap_handoff.py --repo E:\path\to\your\repo --platform both 
 | 参数 | 说明 |
 | --- | --- |
 | `--repo <path>` | 目标仓库根目录，默认当前目录。 |
-| `--platform codex\|claude\|both` | 项目规则目标。`codex` 更新 `AGENTS.md`，`claude` 更新 `.claude/CLAUDE.md`，`both` 同时更新两者。 |
+| `--platform codex\|claude\|dsh\|both` | 项目规则目标。`codex` 和 `dsh` 更新共用的 `AGENTS.md`，`claude` 更新 `.claude/CLAUDE.md`，`both` 写入两个文件并覆盖三个平台。 |
 | `--layout single\|multi` | 接力结构。`multi` 是默认推荐模式；`single` 保留旧版单文档结构。 |
 | `--session-prompts` | 如果缺失则创建 `AGENT_SESSION_PROMPTS.md`。 |
 | `--gitignore` | 把 `AGENT_HANDOFF.md` 和 `AGENT_SESSION_PROMPTS.md` 加入 `.gitignore`。 |
 | `--allow-readonly` | Claude Code 专用：合并安全只读查询权限到 `.claude/settings.json`。 |
 | `--install-hooks` | Claude Code 专用：安装可选软提醒 hook，并把缺失 hook 条目合并到 `.claude/settings.json`。 |
 | `--dry-run` | 只显示计划改动，不写入文件。 |
-| `--skip-codex-rules` | 不创建或更新 `AGENTS.md`。 |
+| `--skip-codex-rules` | 不创建或更新 Codex/DSH 共用的 `AGENTS.md`。 |
 | `--skip-claude-rules` | 不创建或更新 `.claude/CLAUDE.md`。 |
 
 示例：
@@ -275,6 +307,12 @@ python scripts\bootstrap_handoff.py --repo E:\_workspace\my-saas --platform both
 ```
 
 确认输出后再去掉 `--dry-run`。
+
+DSH-only 项目可以使用：
+
+```powershell
+python scripts\bootstrap_handoff.py --repo . --platform dsh --layout multi --dry-run
+```
 
 ## 使用示例
 
@@ -291,7 +329,7 @@ Agent 应该做：
 1. 检查项目结构。
 2. 查找已有 `CLAUDE.md`、`AGENTS.md`、`.claude/CLAUDE.md`。
 3. 创建或更新 `AGENT_HANDOFF.md`。
-4. 幂等合并 Codex `AGENTS.md` 的 handoff 区块。
+4. 幂等合并 Codex / DSH 共用的 `AGENTS.md` handoff 区块。
 5. 幂等合并 Claude Code `.claude/CLAUDE.md` 的 handoff 区块。
 6. 可选创建 `AGENT_SESSION_PROMPTS.md`。
 7. 复读修改后的文件。
@@ -354,7 +392,7 @@ python scripts\bootstrap_handoff.py --repo . --install-hooks
 
 ### 检查容量、压缩 Snapshot 和轮换历史
 
-长期运行的项目会不断产生验证记录和工作日志。如果只靠“尽量写短”这一句规则，snapshot 很容易重新变成聊天归档。新版提供独立维护脚本，让 Codex 和 Claude Code 使用同一套确定性策略：
+长期运行的项目会不断产生验证记录和工作日志。如果只靠“尽量写短”这一句规则，snapshot 很容易重新变成聊天归档。新版提供独立维护脚本，让 Codex、Claude Code 和 DSH 使用同一套确定性策略：
 
 ```powershell
 # 只读检查，不修改任何文件
@@ -367,7 +405,7 @@ python scripts\maintain_handoff.py --repo . --compact-if-needed
 python scripts\maintain_handoff.py --repo . --rotate
 ```
 
-如果脚本从已安装 skill 运行，把 `scripts\maintain_handoff.py` 换成实际 skill 路径，例如 `~/.codex/skills/agent-handoff/scripts/maintain_handoff.py` 或 `~/.claude/skills/agent-handoff/scripts/maintain_handoff.py`。
+如果脚本从已安装 skill 运行，把 `scripts\maintain_handoff.py` 换成实际 skill 路径，例如 `~/.codex/skills/agent-handoff/scripts/maintain_handoff.py`、`~/.claude/skills/agent-handoff/scripts/maintain_handoff.py`、`~/.dsh/skills/agent-handoff/scripts/maintain_handoff.py` 或 `~/.agents/skills/agent-handoff/scripts/maintain_handoff.py`。
 
 | 文件 | 软限制 / 触发条件 | 硬限制 / 上限 | 自动处理 |
 | --- | --- | --- | --- |
@@ -401,14 +439,13 @@ agent-handoff/
   references/
     codex-rules.md
     claude-rules.md
+    dsh-rules.md
     hooks.md
     quality.md
     templates.md
   scripts/
     bootstrap_handoff.py
     maintain_handoff.py
-  tests/
-    test_maintain_handoff.py
 ```
 
 多文档模式会在目标项目中创建：
@@ -432,15 +469,15 @@ AGENT_HANDOFF.md
 
 - `SKILL.md`：运行时入口。越短越好，只放触发说明、核心流程、资源导航和边界。
 - `references/templates.md`：`AGENT_HANDOFF.md` 和 `AGENT_SESSION_PROMPTS.md` 模板。
-- `references/codex-rules.md`：Codex `AGENTS.md` handoff 规则区块。
+- `references/codex-rules.md`：Codex / DSH 共用的 `AGENTS.md` handoff 规则区块。
 - `references/claude-rules.md`：Claude Code `.claude/CLAUDE.md` handoff 规则区块。
+- `references/dsh-rules.md`：DSH 的 Skill 发现目录、调用契约、共享 `AGENTS.md` 规则和运行时边界。
 - `references/hooks.md`：可选 Claude Code 事件感知 hook 说明，必须始终以 `0` 退出，不返回 `decision: "block"` 或 `continue: false`，不写接力文件，不应阻断或关闭会话。
 - `templates/claude-settings-hooks.json`：Claude Code `.claude/settings.json` hook 片段模板，供手动合并或脚本安装使用。
 - `templates/handoff-watch.mjs`：Claude Code 事件感知接力提醒 hook 脚本模板。
 - `references/quality.md`：审查、修复、压缩接力文档时使用的质量标准。
 - `scripts/bootstrap_handoff.py`：保守的初始化脚本，负责创建缺失文件、多文档或单文档结构、幂等合并规则，并可按需安装 Claude Code 软提醒 hook。
-- `scripts/maintain_handoff.py`：Codex / Claude Code 共用的容量检查、snapshot 压缩和历史轮换脚本。
-- `tests/test_maintain_handoff.py`：验证只读检查、归档优先、结构化轮换、语义保护和分片上限。
+- `scripts/maintain_handoff.py`：Codex、Claude Code 和 DSH 共用的容量检查、snapshot 压缩和历史轮换脚本。
 - `README.md` / `README_en.md`：GitHub 展示文档，不参与 skill 运行。
 
 ## 设计原则
@@ -483,7 +520,7 @@ AGENT_HANDOFF.md
 
 ### 5. 不越权修改用户级配置
 
-默认只修改当前项目内文件。不要自动修改用户级配置，例如 `~/.codex/AGENTS.md` 或 `~/.claude/CLAUDE.md`，除非用户明确要求。
+默认只修改当前项目内文件。不要自动修改用户级配置，例如 `~/.codex/AGENTS.md`、`~/.claude/CLAUDE.md`、DSH profile、`cordis.patch.yml` 或 `settings.yaml`，除非用户明确要求。把 Skill 安装到 DSH 默认发现目录本身不需要修改这些配置。
 
 ### 6. 稳定读取优先于盲目翻页
 
@@ -525,8 +562,10 @@ AGENT_HANDOFF.md
 - 如果项目把接力文档放进 `.gitignore`，要确保团队知道它是本地状态文件。
 - hook 只是可选增强，不应该替代 Agent 自己的 closeout 责任；默认初始化不会安装 hook，只有显式使用 `--install-hooks` 才会写入 `.claude/hooks/handoff-watch.mjs` 并合并 `.claude/settings.json`。当前 hook 覆盖 `SessionStart`、`UserPromptSubmit`、`PreCompact`、`Stop`、`SubagentStop`、`SessionEnd`，只输出软上下文或软提醒。
 - hook 只检测容量并提示，不会自动运行维护脚本；这避免 PostToolUse 或 Stop 阶段因 Python 进程、文件锁或脚本异常阻塞会话。
+- Claude Code hook 不适用于 Codex 或 DSH；DSH 通过共享 `AGENTS.md` 执行恢复和 closeout 约束。
 - 如果目标项目已有无 Agent handoff marker 的 `.claude/hooks/handoff-watch.mjs`，脚本会保留它且不会自动把 settings 指向该未知脚本，避免误接入可能阻断会话的自定义 hook。
 - `bootstrap_handoff.py` 不会覆盖已有 `AGENT_HANDOFF.md`，因为已有接力状态必须由 Agent 基于仓库事实修复。
+- DSH 目前仍处于 developer preview，后续版本可能调整 Skill 发现或指令加载契约；升级 DSH 后应对照 `references/dsh-rules.md` 中的官方链接重新核验。
 
 ## License
 

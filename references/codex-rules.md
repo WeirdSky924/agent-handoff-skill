@@ -1,14 +1,15 @@
-# Codex Handoff Rules
+# Codex And DSH Handoff Rules
 
-Merge a marked block into project-level `AGENTS.md` for Codex. If the repository already has an `AGENTS.md`, preserve existing guidance and replace only the marked block when present. Do not edit user-level `~/.codex/AGENTS.md` unless the user explicitly asks.
+Merge a marked block into project-level `AGENTS.md` for Codex and DeepSeek Harness (DSH). If the repository already has an `AGENTS.md`, preserve existing guidance and replace only the marked block when present. Do not edit user-level Codex or DSH configuration unless the user explicitly asks.
 
-Codex uses `AGENTS.md` as repository instructions. This file is the Codex-side counterpart to Claude Code's `.claude/CLAUDE.md`.
+Codex and DSH use `AGENTS.md` as repository instructions. This file is their shared counterpart to Claude Code's `.claude/CLAUDE.md`. Read `references/dsh-rules.md` for DSH discovery paths and runtime-specific boundaries.
 
 Prefer generating the block with `scripts/bootstrap_handoff.py` so it matches the chosen layout:
 
 ```bash
 python <skill-dir>/scripts/bootstrap_handoff.py --repo <repo-root> --platform codex --layout multi
 python <skill-dir>/scripts/bootstrap_handoff.py --repo <repo-root> --platform codex --layout single
+python <skill-dir>/scripts/bootstrap_handoff.py --repo <repo-root> --platform dsh --layout multi
 ```
 
 If the markers already exist, replace only the marked block.
@@ -23,7 +24,7 @@ If the markers already exist, replace only the marked block.
 
 ## Multi-Document Startup Rule
 
-For `--layout multi`, the generated Codex rule instructs future agents to read:
+For `--layout multi`, the generated Codex / DSH rule instructs future agents to read:
 
 1. `AGENT_HANDOFF.md`
 2. `.agent-handoff/snapshot.md`
@@ -36,7 +37,7 @@ For `--layout multi`, the generated Codex rule instructs future agents to read:
 
 ## Capacity Rule
 
-Generated Codex rules use the shared maintenance policy: snapshot soft limit `16 KiB / 240 lines`, hard limit `32 KiB / 400 lines`; work log `64 KiB / 30` dated sections; validation `64 KiB / 200` rows; backlog and risks `32 KiB`; archive chunks `128 KiB`. After handoff updates, run the installed skill's `scripts/maintain_handoff.py --repo <repo> --compact-if-needed` when available. Preserve unparseable state for manual repair.
+Generated Codex / DSH rules use the shared maintenance policy: snapshot soft limit `16 KiB / 240 lines`, hard limit `32 KiB / 400 lines`; work log `64 KiB / 30` dated sections; validation `64 KiB / 200` rows; backlog and risks `32 KiB`; archive chunks `128 KiB`. After handoff updates, run the installed skill's `scripts/maintain_handoff.py --repo <repo> --compact-if-needed` when available. Preserve unparseable state for manual repair.
 
 ## Continuation Recovery Guard
 
@@ -44,7 +45,7 @@ If the user says `continue`, `继续`, `Continue from where you left off.`, or a
 
 ## Stable File Reading Protocol
 
-Generated Codex rules include a defensive Read protocol:
+Generated Codex / DSH rules include a defensive Read protocol:
 
 - Keep Read ranges no larger than 240 lines unless the file is known to be small.
 - Treat Read `offset` as a line number, not a character offset.
@@ -55,7 +56,7 @@ Generated Codex rules include a defensive Read protocol:
 
 ## Single-Document Startup Rule
 
-For `--layout single`, the generated Codex rule instructs future agents to read:
+For `--layout single`, the generated Codex / DSH rule instructs future agents to read:
 
 1. `AGENT_HANDOFF.md`
 2. Task-specific docs referenced by `AGENT_HANDOFF.md`

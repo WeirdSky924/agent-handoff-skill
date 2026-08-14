@@ -2,7 +2,7 @@
 
 Use hooks only when the user asks for stronger operational reminders than written project rules. Hooks must check and remind; they must not generate handoff content, because closeout state needs repository context and agent judgment.
 
-This hook guidance is Claude Code specific. Codex does not use Claude hooks, and the default bootstrap command does not install hooks unless `--install-hooks` is passed.
+This hook guidance is Claude Code specific. Codex and DSH do not use Claude hook configuration, and the default bootstrap command does not install hooks unless `--install-hooks` is passed.
 
 ## Safety Contract
 

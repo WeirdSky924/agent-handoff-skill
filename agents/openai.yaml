@@ -1,4 +1,4 @@
 interface:
   display_name: "Agent Handoff"
-  short_description: "Bounded repo handoffs for Codex and Claude Code."
-  default_prompt: "Use the cross-platform agent-handoff skill to create, repair, or compact durable repository handoff state for Codex and Claude Code."
+  short_description: "Bounded handoffs for Codex, Claude Code, and DSH."
+  default_prompt: "Use $agent-handoff to create, repair, or compact durable repository handoff state for Codex, Claude Code, or DeepSeek Harness."

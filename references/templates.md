@@ -2,7 +2,7 @@
 
 Use these templates when creating or repairing repository-local handoff files. Replace placeholders with repository facts. Use `UNKNOWN` when a fact cannot be verified.
 
-For project-level agent rules, use `references/codex-rules.md` for Codex `AGENTS.md` and `references/claude-rules.md` for Claude Code `.claude/CLAUDE.md`.
+For project-level agent rules, use `references/codex-rules.md` for the shared Codex / DSH `AGENTS.md` block, `references/dsh-rules.md` for DSH discovery and runtime boundaries, and `references/claude-rules.md` for Claude Code `.claude/CLAUDE.md`.
 
 ## Layouts
 
@@ -215,7 +215,7 @@ The maintenance script writes full rotated records to `.agent-handoff/archive/` 
 
 ## Multi-Document Capacity Policy
 
-Run these commands from either the Codex or Claude Code installation of this skill:
+Run these commands from the Codex, Claude Code, or DSH installation of this skill:
 
 ```bash
 python <skill-dir>/scripts/maintain_handoff.py --repo <repo-root> --check
