@@ -1,12 +1,16 @@
 # Agent Handoff Skill
 
-[中文](README.md) | [English](README_en.md)
+<p align="center">
+  <a href="README.md">中文</a> | <a href="README_en.md">English</a>
+</p>
 
-如果这个 skill 对你的 Agent 接力流程有帮助，欢迎给仓库点一个 Star，让更多人更容易找到它。
+<p align="center">
+  <a href="https://www.dsh.so/artifact/agent-handoff-skill/"><img src="https://www.dsh.so/badge/agent-handoff-skill.svg" alt="dsh.so security" /></a>
+</p>
+
+<p align="center">如果这个 skill 对你的 Agent 接力流程有帮助，欢迎给仓库点一个 Star，让更多人更容易找到它。</p>
 
 ![Agent Handoff Skill hero](assets/readme/hero.png)
-
-[![dsh.so security](https://www.dsh.so/badge/agent-handoff-skill.svg)](https://www.dsh.so/artifact/agent-handoff-skill/)
 
 一个给 Codex / Claude Code / DeepSeek Harness（DSH）使用的 **可持续接力机制 skill**。
 

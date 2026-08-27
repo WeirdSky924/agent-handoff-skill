@@ -1,12 +1,14 @@
 # Agent Handoff Skill
 
-[中文](README.md) | [English](README_en.md)
+<p align="center">
+  <a href="README.md">中文</a> | <a href="README_en.md">English</a>
+</p>
 
-If this skill helps your agent handoff workflow, please consider giving the repository a Star so more people can find it.
+<p align="center">
+  <a href="https://www.dsh.so/artifact/agent-handoff-skill/"><img src="https://www.dsh.so/badge/agent-handoff-skill.svg" alt="dsh.so security" /></a>
+</p>
 
-![Agent Handoff Skill hero](assets/readme/hero.png)
-
-[![dsh.so security](https://www.dsh.so/badge/agent-handoff-skill.svg)](https://www.dsh.so/artifact/agent-handoff-skill/)
+<p align="center">If this skill helps your agent handoff workflow, please consider giving the repository a Star so more people can find it.</p>
 
 A **durable handoff mechanism skill** for Codex, Claude Code, and DeepSeek Harness (DSH).
 
