@@ -1,0 +1,26 @@
+{
+  "name": "agent-handoff-skill",
+  "private": true,
+  "description": "Cross-platform durable repository handoff skill for Codex, Claude Code, and DeepSeek Harness.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/WeirdSky924/agent-handoff-skill.git"
+  },
+  "keywords": [
+    "agent-handoff",
+    "agent-skills",
+    "codex",
+    "claude-code",
+    "deepseek-harness",
+    "dsh-plugin"
+  ],
+  "files": [
+    "SKILL.md",
+    "agents",
+    "assets",
+    "references",
+    "scripts",
+    "templates"
+  ]
+}

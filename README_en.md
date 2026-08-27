@@ -4,7 +4,9 @@
 
 If this skill helps your agent handoff workflow, please consider giving the repository a Star so more people can find it.
 
-![Agent Handoff Skill hero](assets/readme/hero.svg)
+![Agent Handoff Skill hero](assets/readme/hero.png)
+
+[![dsh.so security](https://www.dsh.so/badge/agent-handoff-skill.svg)](https://www.dsh.so/artifact/agent-handoff-skill/)
 
 A **durable handoff mechanism skill** for Codex, Claude Code, and DeepSeek Harness (DSH).
 
@@ -26,6 +28,14 @@ This repository is not Codex-only. It uses the common `SKILL.md + references/ + 
 | DSH project Skill | `<repo>/.dsh/skills/agent-handoff` or `<repo>/.agents/skills/agent-handoff` | Active for the nearest Git repository and outranks personal roots. |
 
 DSH does not scan `~/.codex/skills`, `~/.claude/skills`, or `<repo>/.claude/skills`; install or link the repository into one of the DSH roots above. Installation under a default root requires no DSH profile, patch, or settings change. `agents/openai.yaml` is Codex UI metadata and is ignored by Claude Code and DSH.
+
+### dsh.so Marketplace Metadata
+
+The root `package.json` is a minimal marketplace manifest for directory services such as dsh.so. It contains the required `name`, `license`, and `description`, plus repository and file metadata. It is marked `private`: this Skill is not intended to be published to npm, and the file does not change how DSH discovers or loads the runtime `SKILL.md` bundle.
+
+This manifest primarily addresses dsh.so's L2 structured-metadata check. L3 additionally requires a parseable install specification and a declared DSH version; L4 runs that install inside a sandbox. This Skill intentionally declares neither an npm install nor a Cordis bundle install command, so adding `package.json` must not be described as a passing install test.
+
+If you want dsh.so to recognize the repository through GitHub topic indexing, add the `dsh-plugin` topic in the GitHub repository settings. That topic is a marketplace indexing signal, not a DSH profile setting; the actual runtime entry remains `SKILL.md`.
 
 ## Why This Skill Exists
 
@@ -77,7 +87,7 @@ If the markers already exist, the marked block is replaced. If they do not exist
 
 ## How It Works
 
-![Agent Handoff workflow](assets/readme/workflow.svg)
+![Agent Handoff workflow](assets/readme/workflow.png)
 
 The skill creates a loop:
 
@@ -104,7 +114,7 @@ In multi-document layout, the recovery reading order is:
 
 ## Main Use Cases
 
-![Agent Handoff scenarios](assets/readme/scenarios.svg)
+![Agent Handoff scenarios](assets/readme/scenarios.png)
 
 ### 1. Initializing a New Repository
 
@@ -430,9 +440,9 @@ agent-handoff/
     openai.yaml
   assets/
     readme/
-      hero.svg
-      workflow.svg
-      scenarios.svg
+      hero.png
+      workflow.png
+      scenarios.png
   templates/
     claude-settings-hooks.json
     handoff-watch.mjs
@@ -446,6 +456,8 @@ agent-handoff/
   scripts/
     bootstrap_handoff.py
     maintain_handoff.py
+  package.json
+  LICENSE
 ```
 
 Multi layout creates this structure in the target project:
@@ -478,6 +490,8 @@ Responsibilities:
 - `references/quality.md`: Quality standards for reviewing, repairing, and compressing handoff documents.
 - `scripts/bootstrap_handoff.py`: Conservative setup script. Creates missing files, single or multi handoff layouts, idempotently merges rules, and can optionally install Claude Code soft reminder hooks.
 - `scripts/maintain_handoff.py`: Shared Codex, Claude Code, and DSH capacity checks, snapshot compaction, and history rotation.
+- `package.json`: Private marketplace manifest for dsh.so; it does not change DSH's `SKILL.md` discovery behavior.
+- `LICENSE`: MIT license, so users and directory services can identify the usage terms.
 - `README.md` / `README_en.md`: GitHub documentation. Not required at runtime.
 
 ## Design Principles
@@ -566,7 +580,8 @@ Multi-document layout must also satisfy:
 - If the target project already has an unmarked `.claude/hooks/handoff-watch.mjs`, the script preserves it and does not wire settings to that unverified script, avoiding accidental use of custom hooks that might block a session.
 - `bootstrap_handoff.py` does not overwrite an existing `AGENT_HANDOFF.md`; existing state must be repaired from repository facts.
 - DSH is currently a developer preview and may change its skill-discovery or instruction-loading contracts. Recheck the official sources linked from `references/dsh-rules.md` after upgrading DSH.
+- dsh.so is an independent community directory and is not affiliated with DeepSeek AI. The security badge represents its automated static scan, not a manual audit or official DSH certification.
 
 ## License
 
-Use this under your repository's license. If the repository does not have a license yet, consider adding an explicit open-source license such as MIT.
+This repository is licensed under the MIT License. See `LICENSE`.

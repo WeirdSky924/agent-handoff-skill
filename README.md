@@ -4,7 +4,9 @@
 
 如果这个 skill 对你的 Agent 接力流程有帮助，欢迎给仓库点一个 Star，让更多人更容易找到它。
 
-![Agent Handoff Skill hero](assets/readme/hero.svg)
+![Agent Handoff Skill hero](assets/readme/hero.png)
+
+[![dsh.so security](https://www.dsh.so/badge/agent-handoff-skill.svg)](https://www.dsh.so/artifact/agent-handoff-skill/)
 
 一个给 Codex / Claude Code / DeepSeek Harness（DSH）使用的 **可持续接力机制 skill**。
 
@@ -26,6 +28,14 @@
 | DSH 项目级 Skill | `<repo>/.dsh/skills/agent-handoff` 或 `<repo>/.agents/skills/agent-handoff` | 只对当前 Git 仓库生效，项目目录优先于个人目录。 |
 
 DSH 不会扫描 `~/.codex/skills`、`~/.claude/skills` 或 `<repo>/.claude/skills`，需要把仓库安装或链接到上表中的 DSH 根目录。安装到默认根目录不需要修改 DSH profile、patch 或 settings。当前仓库里的 `agents/openai.yaml` 是 Codex UI 元数据；Claude Code 和 DSH 会忽略它。
+
+### dsh.so 市场元数据
+
+仓库根目录的 `package.json` 是给 dsh.so 等目录服务读取的最小市场 manifest，包含 `name`、`license`、`description`、仓库地址和文件清单。它设置为 `private`，不代表这个 Skill 要发布到 npm，也不会改变 DSH 按 `SKILL.md` 发现和加载 Skill 的方式。
+
+这个 manifest 主要解决 dsh.so 的 L2 结构化元数据检查；L3 还需要可解析的安装规范和声明的 DSH 版本，L4 才会在沙箱中实际安装。当前 Skill 不声明 npm 安装或 Cordis bundle 安装命令，因此不能把加入 `package.json` 误解为安装测试已经通过。
+
+如果希望 dsh.so 通过 GitHub topic 自动识别仓库，可以在 GitHub 仓库设置中添加 `dsh-plugin` topic。这个 topic 是市场索引信号，不是 DSH profile 配置；当前仓库的实际运行入口仍然是 `SKILL.md`。
 
 ## 为什么会有这个 Skill
 
@@ -77,7 +87,7 @@ DSH 不会扫描 `~/.codex/skills`、`~/.claude/skills` 或 `<repo>/.claude/skil
 
 ## 它怎么工作
 
-![Agent Handoff workflow](assets/readme/workflow.svg)
+![Agent Handoff workflow](assets/readme/workflow.png)
 
 `agent-handoff` 的运行逻辑可以理解为一个闭环：
 
@@ -104,7 +114,7 @@ DSH 不会扫描 `~/.codex/skills`、`~/.claude/skills` 或 `<repo>/.claude/skil
 
 ## 主要应用场景
 
-![Agent Handoff scenarios](assets/readme/scenarios.svg)
+![Agent Handoff scenarios](assets/readme/scenarios.png)
 
 ### 1. 新项目初始化
 
@@ -430,9 +440,9 @@ agent-handoff/
     openai.yaml
   assets/
     readme/
-      hero.svg
-      workflow.svg
-      scenarios.svg
+      hero.png
+      workflow.png
+      scenarios.png
   templates/
     claude-settings-hooks.json
     handoff-watch.mjs
@@ -446,6 +456,8 @@ agent-handoff/
   scripts/
     bootstrap_handoff.py
     maintain_handoff.py
+  package.json
+  LICENSE
 ```
 
 多文档模式会在目标项目中创建：
@@ -478,6 +490,8 @@ AGENT_HANDOFF.md
 - `references/quality.md`：审查、修复、压缩接力文档时使用的质量标准。
 - `scripts/bootstrap_handoff.py`：保守的初始化脚本，负责创建缺失文件、多文档或单文档结构、幂等合并规则，并可按需安装 Claude Code 软提醒 hook。
 - `scripts/maintain_handoff.py`：Codex、Claude Code 和 DSH 共用的容量检查、snapshot 压缩和历史轮换脚本。
+- `package.json`：给 dsh.so 使用的私有市场 manifest，不改变 DSH 的 `SKILL.md` 发现逻辑。
+- `LICENSE`：MIT 许可证，供用户和目录服务识别授权边界。
 - `README.md` / `README_en.md`：GitHub 展示文档，不参与 skill 运行。
 
 ## 设计原则
@@ -566,7 +580,8 @@ AGENT_HANDOFF.md
 - 如果目标项目已有无 Agent handoff marker 的 `.claude/hooks/handoff-watch.mjs`，脚本会保留它且不会自动把 settings 指向该未知脚本，避免误接入可能阻断会话的自定义 hook。
 - `bootstrap_handoff.py` 不会覆盖已有 `AGENT_HANDOFF.md`，因为已有接力状态必须由 Agent 基于仓库事实修复。
 - DSH 目前仍处于 developer preview，后续版本可能调整 Skill 发现或指令加载契约；升级 DSH 后应对照 `references/dsh-rules.md` 中的官方链接重新核验。
+- dsh.so 是独立的社区目录，不隶属于 DeepSeek AI；安全徽章代表其自动化静态扫描结果，不等同于人工安全审计或 DSH 官方认证。
 
 ## License
 
-按你的仓库 License 使用。如果你还没有添加 License，建议在 GitHub 上选择一个明确的开源许可证，例如 MIT。
+本仓库采用 MIT License，详见 `LICENSE` 文件。
